@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Martian Trail</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            color: #d8c3a5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            background-color: #1a1a1a; /* New: a dark background to hide any white gaps */
+        }
+
+        #video-background {
+            position: fixed; /* New: fixed position to cover the entire viewport */
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* New: center the video */
+            min-width: 100vw; /* New: use viewport units to ensure it covers the whole screen */
+            min-height: 100vh;
+            width: auto;
+            height: auto;
+            z-index: -1;
+            filter: grayscale(80%) brightness(80%) contrast(150%); /* Adjusted brightness */
+            opacity: 0.8;
+            background-size: cover;
+            overflow: hidden; /* New: hide any video overflow */
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(20, 8, 8, 0.4);
+            z-index: -1;
+        }
+
+        #grid-container {
+            border: 2px solid #5d493a;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(220, 150, 50, 0.2);
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .grid-cell {
+            background-color: rgba(59, 47, 47, 0.3);
+            border: 1px solid rgba(220, 150, 50, 0.1);
+        }
+        
+        .obstacle {
+            background-color: rgba(93, 73, 58, 0.6);
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .obstacle::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23d8c3a5"%3E%3Cpath d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/%3E%3C/svg%3E');
+            background-size: 80%;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.6;
+        }
+
+        .start {
+            background-color: #1a73e8;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .end {
+            background-color: #e81a1a;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .path {
+            background-color: #f7a83d;
+            animation: pathAnimate 0.5s ease-in-out forwards;
+            position: relative;
+        }
+
+        .path::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background-color: #d8c3a5;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 1.5s infinite;
+        }
+
+        .visited {
+            background-color: rgba(220, 150, 50, 0.2);
+            transition: background-color 0.2s;
+        }
+        
+        .control-btn {
+            background-color: #c98835;
+            color: #140808;
+            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s, background-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .control-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            background-color: #d8a356;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Message Box Styling */
+        .message-box {
+            background-color: rgba(59, 47, 47, 0.9);
+            border: 2px solid #5d493a;
+            color: #d8c3a5;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(220, 150, 50, 0.2);
+        }
+
+        .message-box.error {
+            border-color: #e81a1a;
+            color: #e81a1a;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pathAnimate {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.6; }
+            100% { transform: scale(0.8); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- The new video element -->
+    <video autoplay muted loop id="video-background">
+        <source src="mars.mp4" type="video/mp4">
+    </video>
+    <!-- A transparent overlay to make the text readable -->
+    <div class="video-overlay"></div>
+    <div class="flex flex-col items-center w-full max-w-6xl z-10">
+        <h1 class="text-4xl md:text-5xl font-bold mb-4 text-center">Martian Trail</h1>
+        <p class="text-sm md:text-base text-center mb-4 text-[#9b8b7e]">Click on the grid to place start, end, and obstacles. Then click "Find Path".</p>
+        
+        <div id="message-box" class="message-box w-full max-w-md hidden mb-8"></div>
+
+        <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-6">
+            <button id="setStartBtn" class="control-btn hover:bg-[#d8a356]">Set Start</button>
+            <button id="setEndBtn" class="control-btn hover:bg-[#d8a356]">Set End</button>
+            <button id="addObstaclesBtn" class="control-btn hover:bg-[#d8a356] bg-gray-500 hover:bg-gray-600">Add Obstacles</button>
+            <button id="findPathBtn" class="control-btn bg-green-600 hover:bg-green-700">Find Path</button>
+            <button id="resetBtn" class="control-btn bg-red-600 hover:bg-red-700">Reset</button>
+        </div>
+
+        <div id="grid-container" class="w-full aspect-square md:w-[600px] md:h-[600px]"></div>
+    </div>
+
+    <script>
+        // --- A* Algorithm and Grid Logic ---
+
+        class Node {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.f = 0; // f = g + h
+                this.g = 0; // distance from start
+                this.h = 0; // heuristic (estimated distance to end)
+                this.isWall = false;
+                this.isStart = false;
+                this.isEnd = false;
+                this.parent = null;
+            }
+        }
+
+        // Global state
+        const COLS = 30;
+        const ROWS = 30;
+        let grid = [];
+        let startNode = null;
+        let endNode = null;
+        let isFindingPath = false;
+        let isDragging = false;
+        let mode = 'obstacle'; // 'start', 'end', or 'obstacle'
+
+        // DOM elements
+        const gridContainer = document.getElementById('grid-container');
+        const setStartBtn = document.getElementById('setStartBtn');
+        const setEndBtn = document.getElementById('setEndBtn');
+        const addObstaclesBtn = document.getElementById('addObstaclesBtn');
+        const findPathBtn = document.getElementById('findPathBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const messageBox = document.getElementById('message-box');
+
+        // --- Grid Creation & UI ---
+        function createGrid() {
+            grid = new Array(COLS);
+            for (let i = 0; i < COLS; i++) {
+                grid[i] = new Array(ROWS);
+            }
+
+            for (let i = 0; i < COLS; i++) {
+                for (let j = 0; j < ROWS; j++) {
+                    grid[i][j] = new Node(i, j);
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell';
+                    cell.dataset.x = i;
+                    cell.dataset.y = j;
+                    gridContainer.appendChild(cell);
+                }
+            }
+
+            // Set grid styles dynamically
+            gridContainer.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+            gridContainer.style.gridTemplateRows = `repeat(${ROWS}, 1fr)`;
+            gridContainer.style.display = 'grid';
+        }
+
+        function drawGrid() {
+            for (let i = 0; i < COLS; i++) {
+                for (let j = 0; j < ROWS; j++) {
+                    const cell = gridContainer.children[i * ROWS + j];
+                    cell.className = 'grid-cell';
+                    const node = grid[i][j];
+
+                    if (node.isWall) cell.classList.add('obstacle');
+                    if (node.isStart) cell.classList.add('start');
+                    if (node.isEnd) cell.classList.add('end');
+                }
+            }
+        }
+
+        function clearPath() {
+            for (let i = 0; i < COLS; i++) {
+                for (let j = 0; j < ROWS; j++) {
+                    const cell = gridContainer.children[i * ROWS + j];
+                    cell.classList.remove('path', 'visited');
+                }
+            }
+        }
+        
+        function showMessage(text, isError = false) {
+            messageBox.textContent = text;
+            messageBox.classList.remove('hidden', 'error');
+            if (isError) {
+                messageBox.classList.add('error');
+            }
+        }
+
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        // --- Core Algorithm Logic (A*) ---
+
+        /**
+         * The A* algorithm implementation.
+         * @param {Node} start The start node.
+         * @param {Node} end The end node.
+         * @returns {Promise<boolean>} A promise that resolves when the path is found or not.
+         */
+        async function aStar(start, end) {
+            const openSet = [];
+            const closedSet = new Set();
+            openSet.push(start);
+
+            while (openSet.length > 0) {
+                // Find the node in the open set with the lowest f score
+                let winner = 0;
+                for (let i = 0; i < openSet.length; i++) {
+                    if (openSet[i].f < openSet[winner].f) {
+                        winner = i;
+                    }
+                }
+                const currentNode = openSet[winner];
+                
+                // Animate visited nodes (optional but cool)
+                if (currentNode !== start && currentNode !== end) {
+                     const cell = gridContainer.children[currentNode.x * ROWS + currentNode.y];
+                     cell.classList.add('visited');
+                     await new Promise(resolve => setTimeout(resolve, 10));
+                }
+
+                // Path found
+                if (currentNode === end) {
+                    reconstructPath(currentNode);
+                    return true;
+                }
+
+                // Remove current from open set and add to closed set
+                openSet.splice(winner, 1);
+                closedSet.add(currentNode);
+
+                // Get neighbors and process them
+                const neighbors = getNeighbors(currentNode);
+                for (const neighbor of neighbors) {
+                    if (closedSet.has(neighbor) || neighbor.isWall) {
+                        continue;
+                    }
+
+                    const tempG = currentNode.g + 1;
+
+                    if (!openSet.includes(neighbor)) {
+                        openSet.push(neighbor);
+                    } else if (tempG >= neighbor.g) {
+                        continue;
+                    }
+
+                    // This is a better path
+                    neighbor.g = tempG;
+                    neighbor.h = heuristic(neighbor, end);
+                    neighbor.f = neighbor.g + neighbor.h;
+                    neighbor.parent = currentNode;
+                }
+            }
+
+            // No path found
+            return false;
+        }
+
+        /**
+         * Heuristic function (Manhattan distance) for A*
+         * @param {Node} a The current node.
+         * @param {Node} b The end node.
+         * @returns {number} The estimated distance.
+         */
+        function heuristic(a, b) {
+            // Manhattan distance
+            return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+        }
+
+        /**
+         * Finds valid neighbors of a given node.
+         * @param {Node} node The node to check.
+         * @returns {Node[]} An array of valid neighbors.
+         */
+        function getNeighbors(node) {
+            const neighbors = [];
+            const dx = [0, 1, 0, -1];
+            const dy = [1, 0, -1, 0];
+
+            for (let i = 0; i < 4; i++) {
+                const newX = node.x + dx[i];
+                const newY = node.y + dy[i];
+
+                if (newX >= 0 && newX < COLS && newY >= 0 && newY < ROWS) {
+                    neighbors.push(grid[newX][newY]);
+                }
+            }
+            return neighbors;
+        }
+
+        /**
+         * Reconstructs the path from the end node back to the start.
+         * @param {Node} endNode The end node of the path.
+         */
+        function reconstructPath(endNode) {
+            let path = [];
+            let currentNode = endNode;
+            while (currentNode.parent) {
+                path.push(currentNode);
+                currentNode = currentNode.parent;
+            }
+            path.push(startNode);
+            path.reverse();
+            
+            // Animate the final path
+            path.forEach((node, index) => {
+                setTimeout(() => {
+                    const cell = gridContainer.children[node.x * ROWS + node.y];
+                    cell.classList.add('path');
+                }, index * 20);
+            });
+        }
+
+        // --- Event Handlers ---
+
+        function handleCellClick(e) {
+            if (isFindingPath) return;
+
+            const x = parseInt(e.target.dataset.x);
+            const y = parseInt(e.target.dataset.y);
+            const node = grid[x][y];
+
+            clearPath();
+            hideMessage();
+            
+            // Reset previous start/end nodes
+            if (mode === 'start' && startNode) {
+                startNode.isStart = false;
+            }
+            if (mode === 'end' && endNode) {
+                endNode.isEnd = false;
+            }
+
+            // Update the node based on the current mode
+            if (mode === 'start' && !node.isEnd && !node.isWall) {
+                node.isStart = true;
+                startNode = node;
+                
+            } else if (mode === 'end' && !node.isStart && !node.isWall) {
+                node.isEnd = true;
+                endNode = node;
+            } else if (mode === 'obstacle' && !node.isStart && !node.isEnd) {
+                node.isWall = !node.isWall;
+            } else {
+                // If the user tries to place a start/end on an obstacle, show an error.
+                showMessage('Cannot place start or end on an obstacle.', true);
+            }
+            drawGrid();
+        }
+        
+        function handleMouseDown(e) {
+            if (isFindingPath || mode !== 'obstacle') return;
+            isDragging = true;
+            handleCellClick(e);
+        }
+
+        function handleMouseUp() {
+            isDragging = false;
+        }
+
+        function handleMouseMove(e) {
+            if (isDragging && mode === 'obstacle' && e.target.classList.contains('grid-cell')) {
+                const x = parseInt(e.target.dataset.x);
+                const y = parseInt(e.target.dataset.y);
+                const node = grid[x][y];
+                if (!node.isStart && !node.isEnd) {
+                    node.isWall = true;
+                    e.target.classList.add('obstacle');
+                }
+            }
+        }
+        
+        function handleTouchStart(e) {
+            if (isFindingPath) return;
+            isDragging = true;
+            handleTouchMove(e);
+        }
+        
+        function handleTouchMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const element = document.elementFromPoint(touch.clientX, touch.clientY);
+            
+            if (element && element.classList.contains('grid-cell')) {
+                const x = parseInt(element.dataset.x);
+                const y = parseInt(element.dataset.y);
+                const node = grid[x][y];
+                
+                if (mode === 'obstacle') {
+                    if (!node.isStart && !node.isEnd) {
+                        node.isWall = true;
+                        element.classList.add('obstacle');
+                    }
+                } else {
+                     handleCellClick({ target: element });
+                     isDragging = false;
+                }
+            }
+        }
+        
+        function handleTouchEnd() {
+            isDragging = false;
+        }
+
+        async function handleFindPath() {
+            if (isFindingPath) return;
+
+            clearPath();
+            hideMessage();
+            if (!startNode || !endNode) {
+                showMessage('Please set both a start and end point first.', true);
+                return;
+            }
+            
+            isFindingPath = true;
+            const pathFound = await aStar(startNode, endNode);
+            isFindingPath = false;
+
+            if (pathFound) {
+                showMessage('Path found!', false);
+            } else {
+                showMessage('No path found. The destination may be unreachable.', true);
+            }
+        }
+
+        function handleReset() {
+            clearPath();
+            hideMessage();
+            grid = [];
+            startNode = null;
+            endNode = null;
+            isFindingPath = false;
+            gridContainer.innerHTML = '';
+            createGrid();
+            drawGrid();
+            showMessage('Grid reset. Start fresh!', false);
+        }
+
+        // --- Initial Setup and Listeners ---
+        
+        // Use a single delegated event listener for clicks on the grid
+        gridContainer.addEventListener('click', handleCellClick);
+        gridContainer.addEventListener('mousedown', handleMouseDown);
+        gridContainer.addEventListener('mouseup', handleMouseUp);
+        gridContainer.addEventListener('mousemove', handleMouseMove);
+        gridContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+        gridContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+        gridContainer.addEventListener('touchend', handleTouchEnd);
+
+        setStartBtn.addEventListener('click', () => {
+            mode = 'start';
+            showMessage('Click on an empty cell to set the start point.', false);
+        });
+
+        setEndBtn.addEventListener('click', () => {
+            mode = 'end';
+            showMessage('Click on an empty cell to set the end point.', false);
+        });
+
+        addObstaclesBtn.addEventListener('click', () => {
+            mode = 'obstacle';
+            showMessage('Click or drag on empty cells to add obstacles.', false);
+        });
+
+        findPathBtn.addEventListener('click', handleFindPath);
+        resetBtn.addEventListener('click', handleReset);
+        
+        createGrid();
+    </script>
+</body>
+</html>
